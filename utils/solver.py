@@ -1,6 +1,7 @@
 import numpy as np
-
-
+from tqdm import tqdm
+import torch
+from torch.utils.tensorboard import SummaryWriter
 class Solver(object):
     """
     A Solver encapsulates all the logic necessary for training classification
@@ -25,7 +26,7 @@ class Solver(object):
     """
 
     def __init__(self, model, train_dataloader, val_dataloader, loss_func,
-                 learning_rate, optimizer, verbose=True, print_every=1):
+                 learning_rate, optimizer, verbose=True, print_every=1, writer=None):
         """
         Construct a new Solver instance.
 
@@ -49,8 +50,12 @@ class Solver(object):
         self.model = model
         self.learning_rate = learning_rate
         self.loss_func = loss_func
-
-        self.opt = optimizer(model, loss_func, learning_rate)
+        self.writer = writer
+        self.opt = optimizer
+        # print(f"Optimizer: {optimizer}")
+        # if optim == "Adam":
+        #     print("True")
+        #     self.opt = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
 
         self.verbose = verbose
         self.print_every = print_every
@@ -91,25 +96,24 @@ class Solver(object):
             labels y
         """
         loss = None
-
         # Forward pass
-        y_pred = self.model.forward(X)
+        y_pred = self.model.forward(X.cuda())
         # Compute loss
-        loss = self.loss_func.forward(y_pred, y)
+        loss = self.loss_func.forward(y_pred, y.long())
 
         # Count number of operations
-        self.num_operation += self.model.num_operation
+        self.num_operation += self.num_operation
 
         # Perform gradient update (only in train mode)
         if not validation:
             # Compute gradients
-            self.opt.backward(y_pred, y)
+            loss.backward()
             # Update weights
             self.opt.step()
 
             # If it was a training step, we need to count operations for
             # backpropagation as well
-            self.num_operation += self.model.num_operation
+            self.num_operation += self.num_operation
 
         return loss
 
@@ -135,41 +139,46 @@ class Solver(object):
         """
 
         # Start an epoch
+        print("Running the training loop")
         for t in range(epochs):
-
             # Iterate over all training samples
             train_epoch_loss = 0.0
-
-            for batch in self.train_dataloader:
+            self.model.train()
+            for batch in tqdm(self.train_dataloader):
                 # Unpack data
-                X = batch['features']
-                y = batch['target']
-
+                X, y = batch
+                X = torch.as_tensor(X, device='cuda', dtype=torch.float32)
+                y = torch.as_tensor(y, device='cuda', dtype=torch.float32)
+                
                 # Update the model parameters.
                 validate = t == 0
                 train_loss = self._step(X, y, validation=validate)
 
-                self.train_batch_loss.append(train_loss)
-                train_epoch_loss += train_loss
-
+                self.train_batch_loss.append(train_loss.item())
+                train_epoch_loss += train_loss.item()
+                del(batch)
             train_epoch_loss /= len(self.train_dataloader)
-
+            self.writer.add_scalar("Loss/train", train_epoch_loss, t)
             # Iterate over all validation samples
             val_epoch_loss = 0.0
 
-            for batch in self.val_dataloader:
-                # Unpack data
-                X = batch['features']
-                y = batch['target']
+            self.model.eval()
+            print("Validating the model")
+            with torch.no_grad():
+                for batch in tqdm(self.val_dataloader):
+                    # Unpack data
+                    X, y = batch
+                    X = torch.as_tensor(X, device='cuda', dtype=torch.float32)
+                    y = torch.as_tensor(y, device='cuda', dtype=torch.float32)
 
-                # Update the model parameters.
-                val_loss = self._step(X, y, validation=True)
-                self.val_batch_loss.append(val_loss)
-                val_epoch_loss += val_loss
-
-            val_epoch_loss /= len(self.val_dataloader)
-
-            # Record the losses for later inspection.
+                    # Update the model parameters.
+                    val_loss = self._step(X, y, validation=True)
+                    self.val_batch_loss.append(val_loss.item())
+                    val_epoch_loss += val_loss.item()
+                    del(batch)
+                val_epoch_loss /= len(self.val_dataloader)
+                self.writer.add_scalar("Loss/val", train_epoch_loss, t)
+                # Record the losses for later inspection.
             self.train_loss_history.append(train_epoch_loss)
             self.val_loss_history.append(val_epoch_loss)
 
@@ -177,7 +186,7 @@ class Solver(object):
                 print('(Epoch %d / %d) train loss: %f; val loss: %f' % (
                     t + 1, epochs, train_epoch_loss, val_epoch_loss))
 
-            # Keep track of the best model
+                # Keep track of the best model
             self.update_best_loss(val_epoch_loss)
 
         # At the end of training swap the best params into the model
@@ -192,7 +201,10 @@ class Solver(object):
         return np.concatenate(prediction, axis=0)
 
     def update_best_loss(self, val_loss):
+        PATH = '../saved_models/best_mlp_model.pth'
+        
         # Update the model and best loss if we see improvements.
         if not self.best_val_loss or val_loss < self.best_val_loss:
             self.best_val_loss = val_loss
-            self.best_params = self.model.params
+            self.best_params = self.model.state_dict()
+            torch.save(self.best_params, PATH)
