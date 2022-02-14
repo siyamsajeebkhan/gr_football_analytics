@@ -2,6 +2,17 @@ import numpy as np
 from tqdm import tqdm
 import torch
 from torch.utils.tensorboard import SummaryWriter
+import datetime
+import time
+
+import torch.nn.functional as F
+
+from ray import tune
+from ray.tune import CLIReporter
+from ray.tune.schedulers import ASHAScheduler
+import random
+import os
+
 class Solver(object):
     """
     A Solver encapsulates all the logic necessary for training classification
@@ -25,7 +36,7 @@ class Solver(object):
     the losses of the model on the training and validation set at each epoch.
     """
 
-    def __init__(self, model, train_dataloader, val_dataloader, loss_func,
+    def __init__(self, model, train_dataloader, val_dataloader,
                  learning_rate, optimizer, verbose=True, print_every=1, writer=None):
         """
         Construct a new Solver instance.
@@ -49,7 +60,7 @@ class Solver(object):
         """
         self.model = model
         self.learning_rate = learning_rate
-        self.loss_func = loss_func
+#         self.loss_func = loss_func
         self.writer = writer
         self.opt = optimizer
         # print(f"Optimizer: {optimizer}")
@@ -82,115 +93,83 @@ class Solver(object):
 
         self.num_operation = 0
 
-    def _step(self, X, y, validation=False):
-        """
-        Make a single gradient update. This is called by train() and should not
-        be called manually.
-
-        :param X: batch of training features
-        :param y: batch of corresponding training labels
-        :param validation: Boolean indicating whether this is a training or
-            validation step
-
-        :return loss: Loss between the model prediction for X and the target
-            labels y
-        """
-        loss = None
-        # Forward pass
-        y_pred = self.model.forward(X.cuda())
-        # Compute loss
-        loss = self.loss_func.forward(y_pred, y.long())
-
-        # Count number of operations
-        self.num_operation += self.num_operation
-
-        # Perform gradient update (only in train mode)
-        if not validation:
-            # Compute gradients
-            loss.backward()
-            # Update weights
-            self.opt.step()
-
-            # If it was a training step, we need to count operations for
-            # backpropagation as well
-            self.num_operation += self.num_operation
-
-        return loss
-
-    def check_loss(self, validation=True):
-        """
-        Check loss of the model on the train/validation data.
-
-        Returns:
-        - loss: Averaged loss over the relevant samples.
-        """
-
-        X = self.X_val if validation else self.X_train
-        y = self.y_val if validation else self.y_train
-
-        model_forward, _ = self.model(X)
-        loss, _ = self.loss_func(model_forward, y)
-
-        return loss.mean()
-
-    def train(self, epochs=100):
+    def train(self, epochs=100, checkpoint_dir = None):
         """
         Run optimization to train the model.
         """
-
         # Start an epoch
-        print("Running the training loop")
-        for t in range(epochs):
+        for epoch in range(epochs):
+            print("Running the training loop")
+            # running_loss = 0.0
+            start_time = time.time()
+            epoch_steps = 0
             # Iterate over all training samples
             train_epoch_loss = 0.0
             self.model.train()
-            for batch in tqdm(self.train_dataloader):
+            for i, data in tqdm(enumerate(self.train_dataloader, 0)):
                 # Unpack data
-                X, y = batch
-                X = torch.as_tensor(X, device='cuda', dtype=torch.float32)
-                y = torch.as_tensor(y, device='cuda', dtype=torch.float32)
-                
-                # Update the model parameters.
-                validate = t == 0
-                train_loss = self._step(X, y, validation=validate)
+                inputs, labels = data
+                inputs, labels = inputs.reshape((inputs.shape[0]*inputs.shape[1], inputs.shape[2])),\
+                                    labels.reshape((-1,))
+                inputs, labels = inputs.to('cuda'), labels.to('cuda')
+                # X = torch.as_tensor(X, device='cuda', dtype=torch.float32)
+                # y = torch.as_tensor(y, device='cuda', dtype=torch.float32)
 
-                self.train_batch_loss.append(train_loss.item())
-                train_epoch_loss += train_loss.item()
-                del(batch)
-            train_epoch_loss /= len(self.train_dataloader)
-            self.writer.add_scalar("Loss/train", train_epoch_loss, t)
-            # Iterate over all validation samples
-            val_epoch_loss = 0.0
 
+                # zero the parameter gradients
+                self.optimizer.zero_grad()
+
+                # forward + backward + optimize
+                outputs = self.model(inputs)
+                loss = F.cross_entropy(outputs, labels.long())
+                loss.backward()
+                self.optimizer.step()
+
+                # print statistics
+                running_loss += loss.item()
+                train_epoch_loss += loss.item()
+                epoch_steps += 1
+                if i % 10000 == 9999:  # print every 10000 mini-batches
+                    print("[%d, %5d] loss: %.3f" % (epoch + 1, i + 1,
+                                                    running_loss / epoch_steps))
+                    running_loss = 0.0
+
+            # Validation loss
             self.model.eval()
-            print("Validating the model")
-            with torch.no_grad():
-                for batch in tqdm(self.val_dataloader):
-                    # Unpack data
-                    X, y = batch
-                    X = torch.as_tensor(X, device='cuda', dtype=torch.float32)
-                    y = torch.as_tensor(y, device='cuda', dtype=torch.float32)
+            val_loss = 0.0
+            val_steps = 0
+            total = 0
+            correct = 0
+            for i, data in enumerate(self.val_dataloader, 0):
+                with torch.no_grad():
+                    inputs, labels = data
+                    inputs, labels = inputs.reshape((inputs.shape[0]*inputs.shape[1], inputs.shape[2])),\
+                                        labels.reshape((-1,))
+                    inputs, labels = inputs.to('cuda'), labels.to('cuda')
 
-                    # Update the model parameters.
-                    val_loss = self._step(X, y, validation=True)
-                    self.val_batch_loss.append(val_loss.item())
-                    val_epoch_loss += val_loss.item()
-                    del(batch)
-                val_epoch_loss /= len(self.val_dataloader)
-                self.writer.add_scalar("Loss/val", train_epoch_loss, t)
-                # Record the losses for later inspection.
-            self.train_loss_history.append(train_epoch_loss)
-            self.val_loss_history.append(val_epoch_loss)
+                    outputs = self.model(inputs)
+                    _, predicted = torch.max(outputs.data, 1)
+                    total += labels.size(0)
+                    correct += (predicted == labels).sum().item()
 
-            if self.verbose and t % self.print_every == 0:
-                print('(Epoch %d / %d) train loss: %f; val loss: %f' % (
-                    t + 1, epochs, train_epoch_loss, val_epoch_loss))
+                    loss = F.cross_entropy(outputs, labels.long())
+                    val_loss += loss.cpu().numpy()
+                    val_steps += 1
 
-                # Keep track of the best model
-            self.update_best_loss(val_epoch_loss)
+            # with tune.checkpoint_dir(epoch) as checkpoint_dir:
+            #     path = os.path.join(checkpoint_dir, "checkpoint")
+            #     torch.save((self.model.state_dict(), self.optimizer.state_dict()), path)
+
+            # tune.report(loss=(val_loss / val_steps), accuracy=correct / total, train_epoch_loss=(train_epoch_loss / epoch_steps))
+            if self.verbose and epoch % self.print_every == 0:
+                print(f"Epoch {t + 1} / {epochs})| train loss: {(train_epoch_loss / epoch_steps)} | val loss: {(val_loss / val_steps)} | epoch time: {str(datetime.timedelta(seconds=time.time() - start_time))[:7]}")
+        
+            # Keep track of the best model
+            self.update_best_loss(val_loss / val_steps)
 
         # At the end of training swap the best params into the model
         self.model.params = self.best_params
+        print("Finished Training")
 
     def get_dataset_prediction(self, loader):
         prediction = []
