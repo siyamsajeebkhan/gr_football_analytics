@@ -73,6 +73,12 @@ pip install stable-baselines3==1.5.0
 ```shell
 pip install notebook
 ```
+
+#### Visualization with Tensorboard
+```shell
+pip install tensorboard
+```
+
 #### Trained IL agent checkpoints
 [IL agent checkpoints](https://drive.google.com/drive/folders/1QwyPsWdGfJMhjEcBIhNot15iij_VRx_U?usp=sharing)
 * epoch=146-step=479366.ckpt - IL agent without batch normalization
