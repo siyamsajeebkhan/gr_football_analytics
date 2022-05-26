@@ -16,6 +16,24 @@ libdirectfb-dev libst-dev mesa-utils xvfb x11vnc python3-pip
 python3 -m pip install --upgrade pip setuptools psutil wheel
 ```
 
+#### macOS
+First install [brew](https://brew.sh/). It should automatically install Command Line Tools.
+Next install required packages:
+
+```shell
+brew install git python3 cmake sdl2 sdl2_image sdl2_ttf sdl2_gfx boost boost-python3
+
+python3 -m pip install --upgrade pip setuptools psutil wheel
+```
+
+
+#### Windows
+Install [Git](https://git-scm.com/download/win) and [Python 3](https://www.python.org/downloads/).
+Update pip in the Command Line (here and for the **next steps** type `python` instead of `python3`)
+```commandline
+python -m pip install --upgrade pip setuptools psutil wheel
+```
+
 #### 2. Install GFootball
 #### Option a. From PyPi package (recommended)
 ```shell
