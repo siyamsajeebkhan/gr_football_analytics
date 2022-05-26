@@ -1,5 +1,5 @@
 #### Creating a virtual environment using conda (recommended)
-Install [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html) using these instructions, if it is not already installed in your system
+Install [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html) if it is not already installed in your system. The create and activate a virtual environment using the following commands:
 ```shell
 conda create -n football-env python=3.9
 conda activate football-env
