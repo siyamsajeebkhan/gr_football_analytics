@@ -73,6 +73,9 @@ pip install stable-baselines3==1.5.0
 ```shell
 pip install notebook
 ```
+#### Trained IL agent checkpoints
+[IL agent checkpoints](https://drive.google.com/drive/folders/1QwyPsWdGfJMhjEcBIhNot15iij_VRx_U?usp=sharing)
+epoch=146-step=479366.ckpt - IL agent without batch normalization
 
 #### Playing around with the notebooks
 1. gfootball-stable-baselines3-DQN.ipynb - for running DQN experiments including DDQN.
