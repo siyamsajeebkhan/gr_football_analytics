@@ -84,6 +84,6 @@ pip install tensorboard
 * epoch=146-step=479366.ckpt - IL agent without batch normalization
 
 #### Playing around with the notebooks
-1. gfootball-stable-baselines3-DQN.ipynb - for running DQN experiments including DDQN.
+1. [gfootball-stable-baselines3-DQN.ipynb](https://github.com/siyamsajeebkhan/gr_football_analytics/blob/6c68e826b418d083eff010f9cce01cc52acfe54a/notebooks/gfootball-stable-baselines3-DQN.ipynb) - for running DQN experiments including DDQN.
 2. gfootball-stable-baselines3-PPO.ipynb - for running PPO experiments.
 3. gfootball-stable-baselines3-test-agent.ipynb - for testing how an agent performs
