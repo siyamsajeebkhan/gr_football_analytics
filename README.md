@@ -69,6 +69,10 @@ If you face any problems, first check [Compiling Engine](gfootball/doc/compile_e
 pip install stable-baselines3==1.5.0
 ```
 
+#### Special Note
+Please replace the original ```stable_baselines3/common/offpolicyalgorithm.py``` and ```stable_baselines3/common/torch_layers.py``` files of the sb3 library with the files provided in the ```changes to_sb3``` directory. I will incorporate these changes in a smarter way later instead of this brute force way. The reason behind this is that I have changed the code of the ```offpolicyalgorithm.py``` for changing the action sampling policy of DQN and the ```torch_layers.py``` file has been changed to incorporate changes such as dropout in the policy network both for DQN and PPO. 
+
+
 #### 4. Install jupyter notebook 
 ```shell
 pip install notebook
