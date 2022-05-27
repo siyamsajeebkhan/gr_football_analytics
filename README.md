@@ -89,5 +89,5 @@ pip install tensorboard
 
 #### Playing around with the notebooks
 1. [gfootball-stable-baselines3-DQN.ipynb](https://github.com/siyamsajeebkhan/gr_football_analytics/blob/6c68e826b418d083eff010f9cce01cc52acfe54a/notebooks/gfootball-stable-baselines3-DQN.ipynb) - for running DQN experiments including DDQN.
-2. gfootball-stable-baselines3-PPO.ipynb - for running PPO experiments.
-3. gfootball-stable-baselines3-test-agent.ipynb - for testing how an agent performs
+2. [gfootball-stable-baselines3-PPO.ipynb](https://github.com/siyamsajeebkhan/gr_football_analytics/blob/ca0528173262ac6e8c29aba463062b8f3a9a40b1/notebooks/gfootball-stable-baselines3-PPO.ipynb) - for running PPO experiments.
+3. [gfootball-stable-baselines3-test-agent.ipynb](https://github.com/siyamsajeebkhan/gr_football_analytics/blob/ca0528173262ac6e8c29aba463062b8f3a9a40b1/notebooks/gfootball-stable-baselines3-test-agent.ipynb) - for testing how an agent performs
